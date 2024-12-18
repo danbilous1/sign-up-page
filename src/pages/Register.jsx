@@ -1,17 +1,40 @@
 import React, { useState } from "react";
 import Button from "react-bootstrap/Button";
 import Form from "react-bootstrap/Form";
+import { useNavigate } from "react-router";
 
-export default function Register() {
+export default function Register({ setToken }) {
   const [email, setEmail] = useState("");
   const [password, setPass] = useState("");
+  const [name, setName] = useState("");
+  const [error, setError] = useState(false);
+  const navigate = useNavigate();
 
   function handleSubmit(e) {
     e.preventDefault();
     let info = {
       email: email,
       password: password,
+      name: name,
     };
+    fetch("http://localhost:2000/api/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(info),
+    })
+      .then((res) => {
+        if (res.status === 201) {
+          return res.json();
+        } else {
+          setError(true);
+        }
+      })
+      .then((result) => {
+        console.log(result);
+        localStorage.setItem("token", result.token);
+        setToken(result.token);
+        navigate("/profile");
+      });
   }
 
   return (
@@ -27,6 +50,16 @@ export default function Register() {
         <Form.Text className="text-muted">
           We'll never share your email with anyone else.
         </Form.Text>
+      </Form.Group>
+
+      <Form.Group className="mb-3" controlId="formBasicEmail">
+        <Form.Label>Name</Form.Label>
+        <Form.Control
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          type="text"
+          placeholder="Enter name"
+        />
       </Form.Group>
 
       <Form.Group className="mb-3" controlId="formBasicPassword">
@@ -47,3 +80,4 @@ export default function Register() {
     </Form>
   );
 }
+
