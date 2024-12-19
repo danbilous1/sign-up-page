@@ -3,6 +3,7 @@ import { useState } from "react";
 import Register from "./pages/Register";
 import Home from "./pages/Home";
 import Profile from "./pages/Profile";
+import Login from "./pages/Login";
 function App() {
   const [token, setToken] = useState(localStorage.getItem("token"));
   return (
@@ -10,7 +11,10 @@ function App() {
       <nav>
         <Link to="/">home</Link>
         {!token ? (
-          <Link to="/register">register</Link>
+          <>
+            <Link to="/register">register</Link>
+            <Link to="/login">login</Link>
+          </>
         ) : (
           <Link to="/profile">profile</Link>
         )}
@@ -18,7 +22,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/register" element={<Register setToken={setToken} />} />
-        <Route path="/profile" element={<Profile />} />
+        <Route path="/profile" element={<Profile token={token} />} />
+        <Route path="login" element={<Login setToken={setToken} />} />
       </Routes>
     </BrowserRouter>
   );
