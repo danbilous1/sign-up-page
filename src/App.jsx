@@ -9,11 +9,11 @@ function App() {
   return (
     <BrowserRouter>
       <nav>
-        <Link to="/">home</Link>
+        <Link to="/">home </Link>
         {!token ? (
           <>
-            <Link to="/register">register</Link>
-            <Link to="/login">login</Link>
+            <Link to="/register">register </Link>
+            <Link to="/login">login </Link>
           </>
         ) : (
           <Link to="/profile">profile</Link>
