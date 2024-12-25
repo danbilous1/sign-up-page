@@ -17,7 +17,8 @@ if (process.env.NEON_DATABASE_URL) {
 async function getUser(email) {
   try {
     const data = await sql(
-      `SELECT name, email FROM accounts WHERE email = ${email}`
+      `SELECT name, email FROM accounts WHERE email = $1`,
+      [email]
     );
     return data[0];
   } catch (error) {
