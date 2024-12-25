@@ -1,96 +1,117 @@
-const express = require("express");
-const bcrypt = require("bcrypt");
-const cors = require("cors");
-const jwt = require("jsonwebtoken");
+import express from "express";
+import bcrypt from "bcrypt";
+import cors from "cors";
+import jwt from "jsonwebtoken";
 import { neon } from "@neondatabase/serverless";
+import dotenv from "dotenv";
+dotenv.config();
 
-if (process.env.JWT_SECRET) {
-  sql = neon(process.env.JWT_SECRET);
+let sql;
+if (process.env.NEON_DATABASE_URL) {
+  sql = neon(process.env.NEON_DATABASE_URL);
+  console.log("Neon database connected!");
+} else {
+  console.log("No Neon database URL found in environment variables.");
 }
 
 async function getUser(email) {
-  const data = await sql(`SELECT * FROM accounts WHERE email = ${email}`);
-  return data[0];
-}
-async function addUser(id, name, email, pass) {
-  const data = await sql(
-    `INSERT INTO accounts(name, email, pass) VALUES(${name}, ${email}, ${pass})`
-  );
-  return data[0];
-}
-async function addToken(id, token) {
-  await sql(
-    `INSERT INTO tokens(id, token)
-  OVERRIDING SYSTEM VALUE
-  VALUES (${id}, ${token})`
-  );
+  try {
+    const data = await sql(
+      `SELECT name, email FROM accounts WHERE email = ${email}`
+    );
+    return data[0];
+  } catch (error) {
+    return false;
+  }
 }
 
-require("dotenv").config();
+async function addUser(name, email, pass) {
+  try {
+    const data = await sql(
+      `INSERT INTO accounts(name, email, pass) VALUES($1, $2, $3) RETURNING *`,
+      [name, email, pass]
+    );
+    console.log("Inserted user:", data);
+    return data[0];
+  } catch (error) {
+    console.error("Error adding user:", error);
+    return false;
+  }
+}
+
+async function logUser(email) {
+  try {
+    const data = await sql(
+      `SELECT id, name, email, pass FROM accounts WHERE email = $1`,
+      [email]
+    );
+    return data[0];
+  } catch (error) {
+    console.error("Error logging in user:", error);
+    return false;
+  }
+}
+
 const app = express();
 app.use(express.json());
 app.use(cors());
 const salt = bcrypt.genSaltSync(2);
 
-app.post("/api/register", (req, res) => {
+app.post("/api/register", async (req, res) => {
   const { name, email, password } = req.body;
-  if (!name || !email || !password) {
-    res.status(422).json({ message: "email, password, name is not declared" });
-  }
-  // we need to check whether user is already exist
-  if (getUser(email)) {
-    res.status(403).json({ message: "User already exists" });
-  } else {
+  try {
+    const existingUser = await getUser(email);
+    if (existingUser) {
+      return res.status(403).json({ message: "User already exists" });
+    }
+
     const passCrypt = bcrypt.hashSync(password, salt);
-    // we add user to database
-    const data = addUser(name, email, passCrypt);
+    const newUser = await addUser(name, email, passCrypt);
     const token = jwt.sign(
-      { id: userId, email: email, pass: password },
+      { id: newUser.id, email: newUser.email },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "20s",
-      }
+      { expiresIn: "20s" }
     );
-    addToken(data[id], token);
-    res.status(201).json({ token: token });
+    res.status(201).json({ token });
+  } catch (error) {
+    console.error("Error during registration:", error);
+    res.status(500).json({ message: "Internal server error." });
   }
 });
 
-app.get("/api/profile", (req, res) => {
+app.get("/api/profile", async (req, res) => {
   const token = req.headers.authorization;
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    res.status(200).json(payload);
+    const userData = await getUser(payload.email);
+    if (userData) {
+      res.status(200).json(userData);
+    } else {
+      res.status(400);
+    }
   } catch (error) {
     res.status(401).json({ message: "Your token has expired." });
   }
 });
 
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
   if (!email || !password) {
     res.status(422).json({ message: "email, password is not declared" });
   }
-  // we need to check whether user is already exist
-  const results = users.find((user) => {
-    return user.email == email && bcrypt.compareSync(password, user.pass);
-  });
-  console.log(results, "dddd");
-  if (results) {
+
+  const result = await logUser(email);
+  if (result && bcrypt.compareSync(password, result.pass)) {
     const token = jwt.sign(
-      { id: results.id, email: results.email },
+      { id: result.id, email: result.email },
       process.env.JWT_SECRET,
-      {
-        expiresIn: "20s",
-      }
+      { expiresIn: "20s" }
     );
-    console.log(token);
     res.status(201).json({ token: token });
   } else {
-    res.status(401).json({ message: "Wrong prediction" });
+    res.status(401).json({ message: "Wrong email or password" });
   }
-  // we add user to database
-  // remember id of record
 });
 
 app.listen(2000, () => console.log("server is running"));
+
